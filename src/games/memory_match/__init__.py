@@ -1,5 +1,5 @@
 """Memory Match game package."""
 
-from .game import run_game
+from .game import MemoryMatchGame
 
-__all__ = ["run_game"]
+__all__ = ["MemoryMatchGame"]

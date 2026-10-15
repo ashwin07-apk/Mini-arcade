@@ -1,1 +1,1 @@
-# Add third-party dependencies here as the games are implemented.
+pygame-ce==2.5.8

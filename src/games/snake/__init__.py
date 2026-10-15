@@ -1,5 +1,5 @@
 """Snake game package."""
 
-from .game import run_game
+from .game import SnakeGame, generate_food
 
-__all__ = ["run_game"]
+__all__ = ["SnakeGame", "generate_food"]

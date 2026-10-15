@@ -6,14 +6,25 @@ import math
 import random
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Callable
 
 import pygame
 
+from src.utils.constants import (
+    BACKGROUND,
+    DANGER,
+    MUTED,
+    PANEL,
+    PRIMARY,
+    SCREEN_HEIGHT,
+    SCREEN_WIDTH,
+    SECONDARY,
+    SUCCESS,
+    TEXT,
+)
+from src.utils.helpers import draw_button, draw_text
 
-WINDOW_WIDTH = 1000
-WINDOW_HEIGHT = 700
-FPS = 60
+WINDOW_WIDTH = SCREEN_WIDTH
+WINDOW_HEIGHT = SCREEN_HEIGHT
 CARD_COLUMNS = 4
 CARD_ROWS = 4
 PAIR_COUNT = CARD_COLUMNS * CARD_ROWS // 2
@@ -23,16 +34,8 @@ CARD_GAP = 16
 CARD_FLIP_MS = 150
 MISMATCH_DELAY_MS = 850
 
-BACKGROUND = (15, 23, 42)
-PANEL = (22, 32, 55)
 CARD_BACK = (30, 41, 67)
 CARD_FACE = (31, 42, 68)
-PRIMARY = (124, 58, 237)
-SECONDARY = (6, 182, 212)
-TEXT = (248, 250, 252)
-MUTED = (148, 163, 184)
-SUCCESS = (34, 197, 94)
-DANGER = (239, 68, 68)
 PAIR_COLORS = (
     (167, 139, 250),
     (34, 211, 238),
@@ -101,8 +104,7 @@ def _draw_centered_text(
     color: tuple[int, int, int],
     center: tuple[int, int],
 ) -> None:
-    rendered = font.render(text, True, color)
-    surface.blit(rendered, rendered.get_rect(center=center))
+    draw_text(surface, text, font, color, center)
 
 
 def _draw_symbol(
@@ -179,6 +181,7 @@ class MemoryMatchGame:
         self.moves = 0
         self.matches = 0
         self.hide_cards_at_ms = 0
+        self.elapsed_ms = 0
         self.status = "Find all eight matching pairs."
         self.status_color = MUTED
         self.reset()
@@ -191,11 +194,45 @@ class MemoryMatchGame:
         self.moves = 0
         self.matches = 0
         self.hide_cards_at_ms = 0
+        self.elapsed_ms = 0
         self.status = "Find all eight matching pairs."
         self.status_color = MUTED
 
-    def select_card(self, index: int, now_ms: int) -> None:
+    def handle_event(self, event: pygame.event.Event) -> str | None:
+        """Handle clicks and keys; return ``menu`` for a menu request."""
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                return "menu"
+            if event.key == pygame.K_r:
+                self.reset()
+            return None
+        if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
+            return None
+
+        if self.state is GameState.GAME_WON:
+            if pygame.Rect(365, 397, 270, 46).collidepoint(event.pos):
+                self.reset()
+            elif pygame.Rect(365, 456, 270, 46).collidepoint(event.pos):
+                return "menu"
+            return None
+
+        restart_rect, menu_rect = _button_rects()
+        if menu_rect.collidepoint(event.pos):
+            return "menu"
+        if restart_rect.collidepoint(event.pos):
+            self.reset()
+            return None
+        if self.state is GameState.PLAYING:
+            for index, card in enumerate(self.cards):
+                if card.rect.collidepoint(event.pos):
+                    self.select_card(index, self.elapsed_ms)
+                    break
+        return None
+
+    def select_card(self, index: int, now_ms: int | None = None) -> None:
         """Reveal a card, or begin checking once a second card is selected."""
+        if now_ms is None:
+            now_ms = self.elapsed_ms
         if self.state is not GameState.PLAYING:
             return
         if not 0 <= index < len(self.cards):
@@ -216,9 +253,13 @@ class MemoryMatchGame:
             self.status = "Checking your pair..."
             self.status_color = SECONDARY
 
-    def update(self, now_ms: int) -> None:
+    def update(self, dt_ms: int) -> None:
         """Resolve the selected pair after the display delay, without blocking."""
-        if self.state is not GameState.CHECKING_MATCH or now_ms < self.hide_cards_at_ms:
+        self.elapsed_ms += max(0, dt_ms)
+        if (
+            self.state is not GameState.CHECKING_MATCH
+            or self.elapsed_ms < self.hide_cards_at_ms
+        ):
             return
 
         first = self.cards[self.selected_indices[0]]
@@ -233,8 +274,8 @@ class MemoryMatchGame:
         else:
             first.revealed = False
             second.revealed = False
-            first.flip_started_ms = now_ms
-            second.flip_started_ms = now_ms
+            first.flip_started_ms = self.elapsed_ms
+            second.flip_started_ms = self.elapsed_ms
             self.status = "Not a match. Try another pair."
             self.status_color = DANGER
 
@@ -246,8 +287,17 @@ class MemoryMatchGame:
             self.status = "Every pair matched!"
             self.status_color = SUCCESS
 
-    def draw(self, surface: pygame.Surface, now_ms: int, mouse_pos: tuple[int, int]) -> None:
+    def draw(
+        self,
+        surface: pygame.Surface,
+        now_ms: int | None = None,
+        mouse_pos: tuple[int, int] | None = None,
+    ) -> None:
         """Draw the background, score, cards, buttons, and win overlay."""
+        if now_ms is None:
+            now_ms = self.elapsed_ms
+        if mouse_pos is None:
+            mouse_pos = pygame.mouse.get_pos()
         surface.fill(BACKGROUND)
         title_font = pygame.font.SysFont("segoeui", 31, bold=True)
         label_font = pygame.font.SysFont("segoeui", 16, bold=True)
@@ -378,10 +428,14 @@ class MemoryMatchGame:
         color: tuple[int, int, int],
         font: pygame.font.Font,
     ) -> None:
-        hovered = rect.collidepoint(mouse_pos)
-        button_color = tuple(min(channel + (15 if hovered else 0), 255) for channel in color)
-        pygame.draw.rect(surface, button_color, rect, border_radius=13)
-        _draw_centered_text(surface, font, text, TEXT, rect.center)
+        draw_button(
+            surface,
+            rect,
+            text,
+            mouse_pos,
+            color=color,
+            font=font,
+        )
 
     def _draw_win_overlay(
         self,
@@ -428,80 +482,3 @@ class MemoryMatchGame:
             (51, 65, 92),
             button_font,
         )
-
-
-def run_game(
-    on_main_menu: Callable[[], None] | None = None,
-    screen: pygame.Surface | None = None,
-) -> None:
-    """Run a round until the player returns to the menu or closes the window.
-
-    For standalone play, call ``run_game()`` and this function creates and
-    cleans up its own Pygame window. When integrated into Mini Arcade, pass
-    the arcade's existing ``screen`` and an ``on_main_menu`` callback. The
-    callback is called after this game's loop exits; the host can then resume
-    its own menu/event loop without the game shutting Pygame down.
-    """
-    started_pygame_here = not pygame.get_init()
-    if started_pygame_here:
-        pygame.init()
-
-    try:
-        game_screen = screen
-        if game_screen is None:
-            game_screen = pygame.display.get_surface()
-            if game_screen is None:
-                game_screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-            pygame.display.set_caption("Mini Arcade | Memory Match")
-
-        clock = pygame.time.Clock()
-        game = MemoryMatchGame()
-        running = True
-        return_to_menu = False
-        restart_button, menu_button = _button_rects()
-
-        while running:
-            now_ms = pygame.time.get_ticks()
-            mouse_pos = pygame.mouse.get_pos()
-            game.update(now_ms)
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        return_to_menu = True
-                        running = False
-                    elif event.key == pygame.K_r:
-                        game.reset()
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if game.state is GameState.GAME_WON:
-                        if pygame.Rect(365, 397, 270, 46).collidepoint(event.pos):
-                            game.reset()
-                        elif pygame.Rect(365, 456, 270, 46).collidepoint(event.pos):
-                            return_to_menu = True
-                            running = False
-                    elif menu_button.collidepoint(event.pos):
-                        return_to_menu = True
-                        running = False
-                    elif restart_button.collidepoint(event.pos):
-                        game.reset()
-                    elif game.state is GameState.PLAYING:
-                        for index, card in enumerate(game.cards):
-                            if card.rect.collidepoint(event.pos):
-                                game.select_card(index, now_ms)
-                                break
-
-            game.draw(game_screen, now_ms, mouse_pos)
-            pygame.display.flip()
-            clock.tick(FPS)
-
-        if return_to_menu and on_main_menu is not None:
-            on_main_menu()
-    finally:
-        if started_pygame_here and on_main_menu is None:
-            pygame.quit()
-
-
-if __name__ == "__main__":
-    run_game()

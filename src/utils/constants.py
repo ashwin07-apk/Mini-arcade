@@ -1,9 +1,18 @@
-"""Shared constants for Mini Arcade."""
+"""Shared display dimensions, labels, and colors for Mini Arcade."""
 
-ARCADE_TITLE = "Mini Arcade"
-GAME_NAMES = (
-    "Tic-Tac-Toe",
-    "Rock-Paper-Scissors",
-    "Memory Match",
-    "Snake",
-)
+SCREEN_WIDTH = 1000
+SCREEN_HEIGHT = 700
+SCREEN_SIZE = (SCREEN_WIDTH, SCREEN_HEIGHT)
+FPS = 60
+
+BACKGROUND = (15, 23, 42)
+PANEL = (22, 32, 55)
+CARD = (30, 41, 67)
+PRIMARY = (124, 58, 237)
+SECONDARY = (6, 182, 212)
+TEXT = (248, 250, 252)
+MUTED = (148, 163, 184)
+SUCCESS = (34, 197, 94)
+DANGER = (239, 68, 68)
+
+ARCADE_TITLE = "MINI ARCADE"

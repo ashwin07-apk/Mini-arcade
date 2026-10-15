@@ -1,4 +1,4 @@
-"""Entry point for Mini Arcade."""
+"""Application entry point for Mini Arcade."""
 
 from src.menu.main_menu import main
 
